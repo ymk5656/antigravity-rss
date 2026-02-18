@@ -87,7 +87,68 @@ function extractSummary(content: string, maxLength: number = 200): string {
   return text.substring(0, maxLength).trim() + '...';
 }
 
+async function discoverFeedUrl(url: string): Promise<string> {
+  // First try the URL as-is
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Antigravity-RSS/1.0',
+        'Accept': 'text/html, application/xhtml+xml',
+      },
+      redirect: 'follow',
+    });
+    const contentType = res.headers.get('content-type') || '';
+    // If it's already XML/RSS, return as-is
+    if (contentType.includes('xml') || contentType.includes('rss') || contentType.includes('atom')) {
+      return url;
+    }
+    // If it's HTML, look for <link rel="alternate"> feed URLs
+    if (contentType.includes('html')) {
+      const html = await res.text();
+      const $ = cheerio.load(html);
+      const feedLink = $('link[type="application/rss+xml"]').attr('href')
+        || $('link[type="application/atom+xml"]').attr('href')
+        || $('link[type="application/feed+json"]').attr('href');
+      if (feedLink) {
+        try {
+          return new URL(feedLink, url).toString();
+        } catch {
+          return feedLink;
+        }
+      }
+    }
+  } catch {
+    // Ignore discovery errors, fall through to try common paths
+  }
+
+  // Try common feed paths
+  const commonPaths = ['/feed', '/rss', '/feed.xml', '/rss.xml', '/atom.xml', '/index.xml'];
+  const base = new URL(url);
+  for (const path of commonPaths) {
+    try {
+      const testUrl = new URL(path, base.origin).toString();
+      const res = await fetch(testUrl, {
+        method: 'HEAD',
+        headers: { 'User-Agent': 'Antigravity-RSS/1.0' },
+        redirect: 'follow',
+      });
+      if (res.ok) {
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('xml') || ct.includes('rss') || ct.includes('atom')) {
+          return testUrl;
+        }
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return url;
+}
+
 export async function parseFeed(url: string): Promise<ParsedFeed> {
+  const feedUrl = await discoverFeedUrl(url);
+
   const parser = new Parser({
     timeout: 10000,
     headers: {
@@ -103,7 +164,7 @@ export async function parseFeed(url: string): Promise<ParsedFeed> {
     },
   });
 
-  const feed = await parser.parseURL(url);
+  const feed = await parser.parseURL(feedUrl);
   
   const articles: ParsedArticle[] = (feed.items || []).map((item: any) => {
     const content = item.contentEncoded || item['content:encoded'] || item.content || item.description || '';

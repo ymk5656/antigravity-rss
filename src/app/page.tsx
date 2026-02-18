@@ -38,10 +38,10 @@ function EmptyState({ onAddFeed }: { onAddFeed: () => void }) {
 
 function ArticleModal({ article, onClose }: { article: Article; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-zinc-900 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4">
+      <div className="bg-white dark:bg-zinc-900 rounded-t-xl sm:rounded-lg max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white dark:bg-zinc-900 p-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-start">
-          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 pr-4">{article.title}</h2>
+          <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-50 pr-4">{article.title}</h2>
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -93,6 +93,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -293,9 +294,26 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex bg-zinc-50 dark:bg-black">
-      <aside className="w-72 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col">
-        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800">
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col transform transition-transform duration-200 ease-in-out md:relative md:translate-x-0 ${
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
           <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">RSS Reader</h1>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden p-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         <div className="p-2 border-b border-zinc-200 dark:border-zinc-800">
@@ -317,7 +335,7 @@ export default function Home() {
                     ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
                     : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
                 }`}
-                onClick={() => setSelectedFeed(feed)}
+                onClick={() => { setSelectedFeed(feed); setSidebarOpen(false) }}
               >
                 <div className="flex-1 min-w-0">
                   <p className="font-medium truncate">{feed.title || 'Untitled Feed'}</p>
@@ -368,13 +386,23 @@ export default function Home() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto md:ml-0 w-full">
         {selectedFeed ? (
-          <div className="max-w-3xl mx-auto p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-                {selectedFeed.title || 'Articles'}
-              </h2>
+          <div className="max-w-3xl mx-auto p-4 sm:p-6">
+            <div className="flex items-center justify-between mb-6 gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  className="md:hidden shrink-0 p-2 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+                <h2 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-50 truncate">
+                  {selectedFeed.title || 'Articles'}
+                </h2>
+              </div>
               <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
@@ -462,7 +490,15 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex flex-col items-center justify-center h-full p-4">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden self-start p-2 mb-4 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
             <div className="text-center">
               <svg className="w-24 h-24 text-zinc-300 dark:text-zinc-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
