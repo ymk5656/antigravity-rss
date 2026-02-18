@@ -1,7 +1,7 @@
 'use client'
 
-import { useClient } from '@/lib/supabase/client'
-import { useEffect, useState, useRef } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Feed, Article } from '@/lib/supabase/types'
 
@@ -53,12 +53,12 @@ function ArticleModal({ article, onClose }: { article: Article; onClose: () => v
             {article.author && <span>{article.author}</span>}
             {article.pub_date && (
               <>
-                <span>•</span>
+                <span>&bull;</span>
                 <span>{new Date(article.pub_date).toLocaleDateString()}</span>
               </>
             )}
           </div>
-          <div 
+          <div
             className="prose prose-zinc dark:prose-invert max-w-none"
             dangerouslySetInnerHTML={{ __html: article.content_html || article.content || '' }}
           />
@@ -69,7 +69,7 @@ function ArticleModal({ article, onClose }: { article: Article; onClose: () => v
               rel="noopener noreferrer"
               className="text-blue-600 hover:text-blue-700 dark:text-blue-400"
             >
-              Read original article →
+              Read original article &rarr;
             </a>
           </div>
         </div>
@@ -95,11 +95,27 @@ export default function Home() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
-  const supabase = useClient()
+  const supabase = createClient()
+
+  const fetchFeeds = useCallback(async () => {
+    const res = await fetch('/api/feeds')
+    if (res.ok) {
+      const data = await res.json()
+      setFeeds(data.feeds || [])
+    }
+  }, [])
+
+  const fetchArticles = useCallback(async (feedId: string, showLoading = true) => {
+    if (showLoading) setArticlesLoading(true)
+    const res = await fetch(`/api/articles?feed_id=${feedId}`)
+    if (res.ok) {
+      const data = await res.json()
+      setArticles(data.articles || [])
+    }
+    if (showLoading) setArticlesLoading(false)
+  }, [])
 
   useEffect(() => {
-    if (!supabase) return
-
     const getSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
@@ -107,7 +123,14 @@ export default function Home() {
         return
       }
       setSession(session)
-      await fetchFeeds()
+      const res = await fetch('/api/feeds')
+      if (res.ok) {
+        const data = await res.json()
+        setFeeds(data.feeds || [])
+        if (data.feeds?.length > 0) {
+          setSelectedFeed(data.feeds[0])
+        }
+      }
       setLoading(false)
     }
 
@@ -123,35 +146,11 @@ export default function Home() {
     return () => subscription.unsubscribe()
   }, [router, supabase])
 
-  // Show loading while initializing client
-  if (!supabase) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
-
-  const fetchFeeds = async () => {
-    const res = await fetch('/api/feeds')
-    if (res.ok) {
-      const data = await res.json()
-      setFeeds(data.feeds || [])
-      if (data.feeds?.length > 0 && !selectedFeed) {
-        setSelectedFeed(data.feeds[0])
-      }
+  useEffect(() => {
+    if (selectedFeed) {
+      fetchArticles(selectedFeed.id)
     }
-  }
-
-  const fetchArticles = async (feedId: string, showLoading = true) => {
-    if (showLoading) setArticlesLoading(true)
-    const res = await fetch(`/api/articles?feed_id=${feedId}`)
-    if (res.ok) {
-      const data = await res.json()
-      setArticles(data.articles || [])
-    }
-    if (showLoading) setArticlesLoading(false)
-  }
+  }, [selectedFeed, fetchArticles])
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
@@ -161,12 +160,6 @@ export default function Home() {
     }
     setIsRefreshing(false)
   }
-
-  useEffect(() => {
-    if (selectedFeed) {
-      fetchArticles(selectedFeed.id)
-    }
-  }, [selectedFeed])
 
   const handleAddFeed = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -219,7 +212,7 @@ export default function Home() {
     })
 
     if (res.ok) {
-      setArticles(articles.map(a => 
+      setArticles(articles.map(a =>
         a.id === article.id ? { ...a, is_read: !a.is_read } : a
       ))
     }
@@ -233,7 +226,7 @@ export default function Home() {
     })
 
     if (res.ok) {
-      setArticles(articles.map(a => 
+      setArticles(articles.map(a =>
         a.id === article.id ? { ...a, is_starred: !article.is_starred } : a
       ))
     }
@@ -265,7 +258,7 @@ export default function Home() {
     })
 
     const data = await res.json()
-    
+
     if (res.ok) {
       alert(`Imported ${data.imported} feeds. ${data.failed} failed.`)
       await fetchFeeds()
@@ -284,7 +277,7 @@ export default function Home() {
   }
 
   const filteredArticles = searchQuery
-    ? articles.filter(a => 
+    ? articles.filter(a =>
         a.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         a.summary?.toLowerCase().includes(searchQuery.toLowerCase())
       )
@@ -492,7 +485,7 @@ export default function Home() {
             <h2 className="text-xl font-bold mb-4 text-zinc-900 dark:text-zinc-50">
               Add RSS Feed
             </h2>
-            
+
             {error && (
               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm">
                 {error}
@@ -508,7 +501,7 @@ export default function Home() {
                 className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4"
                 required
               />
-              
+
               <div className="flex gap-3">
                 <button
                   type="button"
@@ -536,7 +529,7 @@ export default function Home() {
             <h2 className="text-xl font-bold mb-4 text-zinc-900 dark:text-zinc-50">
               Settings
             </h2>
-            
+
             <div className="space-y-4">
               <div>
                 <h3 className="font-medium text-zinc-900 dark:text-zinc-50 mb-2">OPML</h3>

@@ -1,8 +1,10 @@
 'use client'
 
-import { useClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+
+export const dynamic = 'force-dynamic'
 
 export default function SignupPage() {
   const [email, setEmail] = useState('')
@@ -11,12 +13,10 @@ export default function SignupPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const router = useRouter()
-  const supabase = useClient()
+  const supabase = createClient()
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!supabase) return
-    
     setLoading(true)
     setError('')
 
@@ -31,16 +31,6 @@ export default function SignupPage() {
     } else {
       setSuccess(true)
     }
-  }
-
-  if (!supabase) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-        </div>
-      </div>
-    )
   }
 
   if (success) {
@@ -70,7 +60,7 @@ export default function SignupPage() {
         <h1 className="text-2xl font-bold text-center mb-6 text-zinc-900 dark:text-zinc-50">
           Create Account
         </h1>
-        
+
         {error && (
           <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm">
             {error}
@@ -90,7 +80,7 @@ export default function SignupPage() {
               required
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
               Password

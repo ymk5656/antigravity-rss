@@ -1,31 +1,21 @@
 import { createBrowserClient } from '@supabase/ssr'
-import { useState, useEffect } from 'react'
 
-let clientPromise: ReturnType<typeof createBrowserClient> | null = null
+let client: ReturnType<typeof createBrowserClient> | null = null
 
-function getClient() {
+export function createClient() {
   if (typeof window === 'undefined') {
-    return null
+    // During SSR prerender, return a dummy that won't be used
+    // The actual client is created on the browser
+    return createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost',
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy'
+    )
   }
-  if (!clientPromise) {
-    clientPromise = createBrowserClient(
+  if (!client) {
+    client = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
   }
-  return clientPromise
-}
-
-export function createClient() {
-  return getClient()
-}
-
-export function useClient() {
-  const [client, setClient] = useState<ReturnType<typeof createBrowserClient> | null>(null)
-
-  useEffect(() => {
-    setClient(getClient())
-  }, [])
-
   return client
 }
