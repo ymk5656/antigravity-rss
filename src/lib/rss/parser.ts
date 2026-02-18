@@ -87,28 +87,33 @@ function extractSummary(content: string, maxLength: number = 200): string {
   return text.substring(0, maxLength).trim() + '...';
 }
 
+function looksLikeFeedUrl(url: string): boolean {
+  const path = new URL(url).pathname.toLowerCase();
+  return /\.(xml|rss|atom)$/.test(path) || /\/(feed|rss|atom)$/i.test(path);
+}
+
 async function discoverFeedUrl(url: string): Promise<string> {
-  // First try the URL as-is
+  // Skip discovery if URL already looks like a feed
+  if (looksLikeFeedUrl(url)) return url;
+
   try {
     const res = await fetch(url, {
       headers: {
         'User-Agent': 'Antigravity-RSS/1.0',
-        'Accept': 'text/html, application/xhtml+xml',
+        'Accept': 'text/html, application/xhtml+xml, application/xml',
       },
       redirect: 'follow',
+      signal: AbortSignal.timeout(8000),
     });
     const contentType = res.headers.get('content-type') || '';
-    // If it's already XML/RSS, return as-is
     if (contentType.includes('xml') || contentType.includes('rss') || contentType.includes('atom')) {
       return url;
     }
-    // If it's HTML, look for <link rel="alternate"> feed URLs
     if (contentType.includes('html')) {
       const html = await res.text();
       const $ = cheerio.load(html);
       const feedLink = $('link[type="application/rss+xml"]').attr('href')
-        || $('link[type="application/atom+xml"]').attr('href')
-        || $('link[type="application/feed+json"]').attr('href');
+        || $('link[type="application/atom+xml"]').attr('href');
       if (feedLink) {
         try {
           return new URL(feedLink, url).toString();
@@ -118,11 +123,11 @@ async function discoverFeedUrl(url: string): Promise<string> {
       }
     }
   } catch {
-    // Ignore discovery errors, fall through to try common paths
+    // Fall through to try common paths
   }
 
-  // Try common feed paths
-  const commonPaths = ['/feed', '/rss', '/feed.xml', '/rss.xml', '/atom.xml', '/index.xml'];
+  // Only try 2 most common paths to avoid rate limiting
+  const commonPaths = ['/feed', '/rss.xml'];
   const base = new URL(url);
   for (const path of commonPaths) {
     try {
@@ -131,6 +136,7 @@ async function discoverFeedUrl(url: string): Promise<string> {
         method: 'HEAD',
         headers: { 'User-Agent': 'Antigravity-RSS/1.0' },
         redirect: 'follow',
+        signal: AbortSignal.timeout(5000),
       });
       if (res.ok) {
         const ct = res.headers.get('content-type') || '';
@@ -150,7 +156,7 @@ export async function parseFeed(url: string): Promise<ParsedFeed> {
   const feedUrl = await discoverFeedUrl(url);
 
   const parser = new Parser({
-    timeout: 10000,
+    timeout: 15000,
     headers: {
       'User-Agent': 'Antigravity-RSS/1.0',
       'Accept': 'application/rss+xml, application/xml, application/atom+xml, text/xml',
@@ -197,6 +203,15 @@ export async function fetchAndParseFeed(url: string): Promise<{ feed: ParsedFeed
     const feed = await parseFeed(url);
     return { feed };
   } catch (error) {
-    return { feed: { title: '', description: '', link: '', favicon: '', articles: [] }, error: String(error) };
+    const msg = String(error);
+    let userError = 'Failed to parse feed';
+    if (msg.includes('404')) {
+      userError = 'No RSS feed found at this URL. Try using the direct feed URL (e.g. .../feed or .../rss.xml)';
+    } else if (msg.includes('429')) {
+      userError = 'Too many requests. Please wait a moment and try again';
+    } else if (msg.includes('timeout') || msg.includes('abort')) {
+      userError = 'Request timed out. The server may be slow or unreachable';
+    }
+    return { feed: { title: '', description: '', link: '', favicon: '', articles: [] }, error: userError };
   }
 }
