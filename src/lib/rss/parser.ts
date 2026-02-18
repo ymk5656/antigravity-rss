@@ -89,12 +89,18 @@ function extractSummary(content: string, maxLength: number = 200): string {
 
 function looksLikeFeedUrl(url: string): boolean {
   const path = new URL(url).pathname.toLowerCase();
-  return /\.(xml|rss|atom)$/.test(path) || /\/(feed|rss|atom)$/i.test(path);
+  return /\.(xml|rss|atom)$/.test(path) || /\/(feed|rss|atom)(\/|$)/i.test(path);
 }
 
-async function discoverFeedUrl(url: string): Promise<string> {
+interface DiscoverResult {
+  url: string;
+  /** Pre-fetched XML body to avoid re-fetching */
+  body?: string;
+}
+
+async function discoverFeedUrl(url: string): Promise<DiscoverResult> {
   // Skip discovery if URL already looks like a feed
-  if (looksLikeFeedUrl(url)) return url;
+  if (looksLikeFeedUrl(url)) return { url };
 
   try {
     const res = await fetch(url, {
@@ -107,7 +113,9 @@ async function discoverFeedUrl(url: string): Promise<string> {
     });
     const contentType = res.headers.get('content-type') || '';
     if (contentType.includes('xml') || contentType.includes('rss') || contentType.includes('atom')) {
-      return url;
+      // Return pre-fetched body to avoid a second request
+      const body = await res.text();
+      return { url, body };
     }
     if (contentType.includes('html')) {
       const html = await res.text();
@@ -116,9 +124,9 @@ async function discoverFeedUrl(url: string): Promise<string> {
         || $('link[type="application/atom+xml"]').attr('href');
       if (feedLink) {
         try {
-          return new URL(feedLink, url).toString();
+          return { url: new URL(feedLink, url).toString() };
         } catch {
-          return feedLink;
+          return { url: feedLink };
         }
       }
     }
@@ -141,7 +149,7 @@ async function discoverFeedUrl(url: string): Promise<string> {
       if (res.ok) {
         const ct = res.headers.get('content-type') || '';
         if (ct.includes('xml') || ct.includes('rss') || ct.includes('atom')) {
-          return testUrl;
+          return { url: testUrl };
         }
       }
     } catch {
@@ -149,11 +157,12 @@ async function discoverFeedUrl(url: string): Promise<string> {
     }
   }
 
-  return url;
+  return { url };
 }
 
 export async function parseFeed(url: string): Promise<ParsedFeed> {
-  const feedUrl = await discoverFeedUrl(url);
+  const discovered = await discoverFeedUrl(url);
+  const feedUrl = discovered.url;
 
   const parser = new Parser({
     timeout: 15000,
@@ -170,7 +179,10 @@ export async function parseFeed(url: string): Promise<ParsedFeed> {
     },
   });
 
-  const feed = await parser.parseURL(feedUrl);
+  // Use pre-fetched body if available to avoid duplicate requests
+  const feed = discovered.body
+    ? await parser.parseString(discovered.body)
+    : await parser.parseURL(feedUrl);
   
   const articles: ParsedArticle[] = (feed.items || []).map((item: any) => {
     const content = item.contentEncoded || item['content:encoded'] || item.content || item.description || '';
