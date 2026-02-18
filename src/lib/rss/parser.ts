@@ -1,6 +1,5 @@
 import Parser from 'rss-parser';
 import * as cheerio from 'cheerio';
-import DOMPurify from 'isomorphic-dompurify';
 
 export interface ParsedArticle {
   guid: string;
@@ -51,20 +50,34 @@ function extractImage(html: string): string | null {
 }
 
 function sanitizeContent(html: string): string {
-  // Remove unwanted elements
   const $ = cheerio.load(html);
+
+  // Remove unwanted elements
   REMOVE_ELEMENTS.forEach(tag => $(tag).remove());
-  
-  // Get cleaned HTML
-  let cleaned = $.html();
-  
-  // Sanitize with DOMPurify
-  cleaned = DOMPurify.sanitize(cleaned, {
-    ALLOWED_TAGS,
-    ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'target'],
+
+  // Remove disallowed tags but keep their text content
+  const allowedAttrs = ['href', 'src', 'alt', 'title', 'class', 'target'];
+  $('*').each((_i, el) => {
+    const node = el as cheerio.TagElement;
+    if (!node.tagName) return;
+    const tagName = node.tagName.toLowerCase();
+    if (!ALLOWED_TAGS.includes(tagName) && tagName !== 'html' && tagName !== 'head' && tagName !== 'body') {
+      $(el).replaceWith($(el).html() || '');
+    }
   });
-  
-  return cleaned;
+
+  // Remove disallowed attributes
+  $('*').each((_i, el) => {
+    const node = el as cheerio.TagElement;
+    const attribs = node.attribs || {};
+    Object.keys(attribs).forEach(attr => {
+      if (!allowedAttrs.includes(attr)) {
+        $(el).removeAttr(attr);
+      }
+    });
+  });
+
+  return $('body').html() || '';
 }
 
 function extractSummary(content: string, maxLength: number = 200): string {
