@@ -1,6 +1,6 @@
 'use client'
 
-import { createClient } from '@/lib/supabase/client'
+import { useClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
@@ -11,10 +11,12 @@ export default function SignupPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useClient()
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!supabase) return
+    
     setLoading(true)
     setError('')
 
@@ -29,6 +31,16 @@ export default function SignupPage() {
     } else {
       setSuccess(true)
     }
+  }
+
+  if (!supabase) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+        </div>
+      </div>
+    )
   }
 
   if (success) {

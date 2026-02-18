@@ -1,6 +1,6 @@
 'use client'
 
-import { createClient } from '@/lib/supabase/client'
+import { useClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
@@ -10,10 +10,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useClient()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!supabase) return
+    
     setLoading(true)
     setError('')
 
@@ -32,12 +34,23 @@ export default function LoginPage() {
   }
 
   const handleGitHubLogin = async () => {
+    if (!supabase) return
     await supabase.auth.signInWithOAuth({
       provider: 'github',
       options: {
-        redirectTo: `${location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback`,
       },
     })
+  }
+
+  if (!supabase) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+        </div>
+      </div>
+    )
   }
 
   return (

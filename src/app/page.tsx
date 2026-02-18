@@ -1,6 +1,6 @@
 'use client'
 
-import { createClient } from '@/lib/supabase/client'
+import { useClient } from '@/lib/supabase/client'
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Feed, Article } from '@/lib/supabase/types'
@@ -95,9 +95,11 @@ export default function Home() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useClient()
 
   useEffect(() => {
+    if (!supabase) return
+
     const getSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
@@ -111,7 +113,7 @@ export default function Home() {
 
     getSession()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
       setSession(session)
       if (!session) {
         router.push('/login')
@@ -120,6 +122,15 @@ export default function Home() {
 
     return () => subscription.unsubscribe()
   }, [router, supabase])
+
+  // Show loading while initializing client
+  if (!supabase) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
 
   const fetchFeeds = async () => {
     const res = await fetch('/api/feeds')
@@ -571,3 +582,5 @@ export default function Home() {
     </div>
   )
 }
+
+export const dynamic = 'force-dynamic'
