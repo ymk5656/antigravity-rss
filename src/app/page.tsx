@@ -155,6 +155,11 @@ export default function Home() {
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
+    await fetch('/api/feeds/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(selectedFeed ? { feedId: selectedFeed.id } : {}),
+    })
     await fetchFeeds()
     if (selectedFeed) {
       await fetchArticles(selectedFeed.id)
