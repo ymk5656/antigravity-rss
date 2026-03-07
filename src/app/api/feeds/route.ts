@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { fetchAndParseFeed } from '@/lib/rss/parser';
 import { syncFeed } from '@/lib/rss/sync';
 
+export const maxDuration = 30;
+
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -70,9 +72,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  syncFeed(feed.id).then(({ inserted }) => {
-    console.log(`Synced ${inserted} articles for feed ${feed.id}`);
-  });
+  await syncFeed(feed.id);
 
   return NextResponse.json({ feed }, { status: 201 });
 }

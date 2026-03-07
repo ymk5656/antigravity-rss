@@ -109,7 +109,7 @@ async function discoverFeedUrl(url: string): Promise<DiscoverResult> {
         'Accept': 'text/html, application/xhtml+xml, application/xml',
       },
       redirect: 'follow',
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(5000),
     });
     const contentType = res.headers.get('content-type') || '';
     if (contentType.includes('xml') || contentType.includes('rss') || contentType.includes('atom')) {
@@ -144,7 +144,7 @@ async function discoverFeedUrl(url: string): Promise<DiscoverResult> {
         method: 'HEAD',
         headers: { 'User-Agent': 'Antigravity-RSS/1.0' },
         redirect: 'follow',
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(3000),
       });
       if (res.ok) {
         const ct = res.headers.get('content-type') || '';
@@ -165,7 +165,7 @@ export async function parseFeed(url: string): Promise<ParsedFeed> {
   const feedUrl = discovered.url;
 
   const parser = new Parser({
-    timeout: 15000,
+    timeout: 8000,
     headers: {
       'User-Agent': 'Antigravity-RSS/1.0',
       'Accept': 'application/rss+xml, application/xml, application/atom+xml, text/xml',
